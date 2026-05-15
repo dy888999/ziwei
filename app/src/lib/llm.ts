@@ -32,20 +32,20 @@ export interface StreamCallbacks {
 
 export const PROVIDER_CONFIGS: Record<ModelProvider, { baseUrl: string; defaultModel: string }> = {
   kimi: {
-    baseUrl: 'https://api.moonshot.cn/v1',
-    defaultModel: 'kimi-k2-0905-preview',
+    baseUrl: 'https://api.moonshot.ai/v1',
+    defaultModel: 'kimi-k2.6',
   },
   gemini: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-3.0-flash',
+    defaultModel: 'gemini-3.1-pro-preview',
   },
   claude: {
     baseUrl: 'https://api.anthropic.com/v1',
-    defaultModel: 'claude-opus-4-5-20251124',
+    defaultModel: 'claude-opus-4-7',
   },
   deepseek: {
     baseUrl: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-chat',
+    defaultModel: 'deepseek-v4-pro',
   },
   custom: {
     baseUrl: '',
@@ -250,9 +250,9 @@ async function* streamOpenAICompatible(
   let useModel = model || providerConfig.defaultModel
   if (enableThinking && !model) {
     if (provider === 'deepseek') {
-      useModel = 'deepseek-v3.2-speciale'
+      useModel = 'deepseek-v4-pro'
     } else if (provider === 'kimi') {
-      useModel = 'kimi-k2-thinking'
+      useModel = 'kimi-k2.6'
     }
   }
 
@@ -271,6 +271,23 @@ async function* streamOpenAICompatible(
       type: 'builtin_function',
       function: { name: '$web_search' },
     }]
+  }
+
+  // Kimi K2.6 uses the same model id for thinking and non-thinking modes.
+  // Official web search is currently incompatible with K2.6 thinking mode.
+  if (provider === 'kimi') {
+    requestBody.thinking = {
+      type: enableThinking && !enableWebSearch ? 'enabled' : 'disabled',
+    }
+  }
+
+  if (provider === 'deepseek') {
+    requestBody.thinking = {
+      type: enableThinking ? 'enabled' : 'disabled',
+    }
+    if (enableThinking) {
+      requestBody.reasoning_effort = 'high'
+    }
   }
 
   // 非 Kimi 且有 Tavily API，使用智能搜索
@@ -341,10 +358,10 @@ async function* streamGemini(
   const { apiKey, model, baseUrl, enableThinking, enableWebSearch } = config
   const providerConfig = PROVIDER_CONFIGS.gemini
 
-  // 思考模式切换到 gemini-3-pro-preview
+  // 思考模式切换到最新 Gemini 3.1 Pro Preview
   let modelName = model || providerConfig.defaultModel
   if (enableThinking && !model) {
-    modelName = 'gemini-3-pro-preview'
+    modelName = 'gemini-3.1-pro-preview'
   }
 
   // 转换消息格式

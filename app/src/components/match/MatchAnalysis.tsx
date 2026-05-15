@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useSettingsStore } from '@/stores'
-import { generateChart, type BirthInfo, type Gender } from '@/lib/astro'
+import { generateChart, getShichenOptions, type BirthInfo, type Gender } from '@/lib/astro'
 import { extractKnowledge, buildPromptContext } from '@/knowledge'
 import { streamChat, type ChatMessage, type LLMConfig } from '@/lib/llm'
 import { Button, Select } from '@/components/ui'
@@ -29,20 +29,7 @@ const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => ({
   value: i + 1,
   label: `${i + 1}日`,
 }))
-const HOUR_OPTIONS = [
-  { value: 23, label: '子时 (23:00-00:59)' },
-  { value: 2, label: '丑时 (01:00-02:59)' },
-  { value: 4, label: '寅时 (03:00-04:59)' },
-  { value: 6, label: '卯时 (05:00-06:59)' },
-  { value: 8, label: '辰时 (07:00-08:59)' },
-  { value: 10, label: '巳时 (09:00-10:59)' },
-  { value: 12, label: '午时 (11:00-12:59)' },
-  { value: 14, label: '未时 (13:00-14:59)' },
-  { value: 16, label: '申时 (15:00-16:59)' },
-  { value: 18, label: '酉时 (17:00-18:59)' },
-  { value: 20, label: '戌时 (19:00-20:59)' },
-  { value: 22, label: '亥时 (21:00-22:59)' },
-]
+const HOUR_OPTIONS = getShichenOptions()
 const GENDER_OPTIONS = [
   { value: 'male', label: '男' },
   { value: 'female', label: '女' },

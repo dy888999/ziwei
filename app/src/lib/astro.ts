@@ -76,7 +76,7 @@ export function hourToShichen(hour: number): string {
 export function getShichenOptions() {
   return SHICHEN_NAMES.map((name, index) => {
     const startHour = index === 0 ? 23 : (index * 2 - 1)
-    const endHour = index === 0 ? 1 : (index * 2 + 1)
+    const endHour = index === 11 ? 22 : index === 0 ? 0 : (index * 2)
     const label = index === 0
       ? `${name}时 (23:00-00:59)`
       : `${name}时 (${String(startHour).padStart(2, '0')}:00-${String(endHour).padStart(2, '0')}:59)`

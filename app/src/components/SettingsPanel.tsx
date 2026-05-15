@@ -22,7 +22,7 @@ const PROVIDER_OPTIONS: Array<{ value: ModelProvider; label: string }> = [
 ]
 
 const API_DOCS: Record<ModelProvider, string> = {
-  kimi: 'https://platform.moonshot.cn',
+  kimi: 'https://platform.kimi.ai',
   gemini: 'https://aistudio.google.com/apikey',
   claude: 'https://console.anthropic.com',
   deepseek: 'https://platform.deepseek.com',
@@ -134,7 +134,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       {/* 未保存修改确认对话框 */}
       {pendingProvider && (
         <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center z-10 p-4">
-          <div className="bg-surface p-5 rounded-xl max-w-sm w-full space-y-4">
+          <div className="bg-night-light p-5 rounded-xl max-w-sm w-full space-y-4">
             <p className="text-text-secondary text-sm">
               当前配置有未保存的修改，切换厂商将丢失这些修改。
             </p>
