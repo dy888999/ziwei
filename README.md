@@ -1,6 +1,6 @@
 # 紫微知道
 
-开源的紫微斗数命盘工具，精准排盘 + AI 深度解读，支持自部署和多模型切换。
+紫微斗数命盘分析工具，精准排盘 + AI 深度解读，支持一键自部署和多模型切换。
 <img width="1920" height="911" alt="image" src="https://github.com/user-attachments/assets/756c0de6-e31c-4166-913e-c2d0afd1cf15" />
 
 ## 功能特性
