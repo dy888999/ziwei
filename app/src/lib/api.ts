@@ -2,8 +2,8 @@
    API 层 — 与 Cloudflare Worker 通信
    ============================================================ */
 
-// Worker 域名
-export const WORKER_URL = 'https://ziwei-api.wudy888999.workers.dev';
+// Worker 域名（前端同域名代理，移动网络兼容）
+export const WORKER_URL = '';
 
 // ============================================================
 // Worker API 调用
