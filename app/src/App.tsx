@@ -1,9 +1,9 @@
 /* ============================================================
    紫微斗数 App - 主入口
-   高级玻璃态设计 + 精致导航交互
+   高级玻璃态设计 + 精致导航交互 + 完全免费
    ============================================================ */
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { BirthForm } from '@/components/BirthForm'
 import { ChartDisplay } from '@/components/chart'
 import { AIInterpretation } from '@/components/AIInterpretation'
@@ -16,18 +16,29 @@ import { useChartStore } from '@/stores'
 
 type TabType = 'chart' | 'fortune' | 'kline' | 'match' | 'share'
 
-const TABS: Array<{ key: TabType; label: string; icon: string }> = [
-  { key: 'chart', label: '命盘解读', icon: '☰' },
+interface TabConfig {
+  key: TabType
+  label: string
+  icon: string
+}
+
+const TABS: TabConfig[] = [
+  { key: 'chart',   label: '命盘解读', icon: '☰' },
   { key: 'fortune', label: '年度运势', icon: '◎' },
-  { key: 'kline', label: '人生K线', icon: '⊹' },
-  { key: 'match', label: '双人合盘', icon: '⚭' },
-  { key: 'share', label: '分享卡片', icon: '◈' },
+  { key: 'kline',   label: '人生K线',  icon: '⊹' },
+  { key: 'match',   label: '双人合盘', icon: '⚭' },
+  { key: 'share',   label: '分享卡片', icon: '◈' },
 ]
 
 export default function App() {
   const { chart } = useChartStore()
   const [showSettings, setShowSettings] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('chart')
+
+  // 切换标签
+  const handleTabClick = useCallback((tab: TabConfig) => {
+    setActiveTab(tab.key)
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -50,7 +61,6 @@ export default function App() {
           <div className="flex items-center gap-10">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              {/* Logo 图标 */}
               <div
                 className="
                   relative w-10 h-10 rounded-xl
@@ -63,7 +73,6 @@ export default function App() {
                 <span className="text-lg text-gold">☆</span>
                 <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-star/10 to-transparent animate-pulse" />
               </div>
-              {/* Logo 文字 */}
               <div>
                 <h1
                   className="
@@ -77,7 +86,7 @@ export default function App() {
                   紫微知道
                 </h1>
                 <p className="text-text-muted text-xs hidden sm:block">
-                  AI 命理工具
+                  AI 命理工具 · 免费在线使用
                 </p>
               </div>
             </div>
@@ -87,7 +96,7 @@ export default function App() {
               {TABS.map((tab) => (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => handleTabClick(tab)}
                   className={`
                     group relative px-4 py-2 rounded-lg
                     text-sm font-medium transition-all duration-200
@@ -131,38 +140,6 @@ export default function App() {
               ))}
             </nav>
           </div>
-
-          {/* 设置按钮 */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="
-              group relative p-2.5 rounded-xl
-              bg-white/[0.04] border border-white/[0.08]
-              hover:bg-white/[0.08] hover:border-white/[0.12]
-              transition-all duration-200
-            "
-            title="设置"
-          >
-            <svg
-              className="w-5 h-5 text-text-muted group-hover:text-text transition-colors"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </button>
         </div>
       </header>
 
@@ -179,7 +156,7 @@ export default function App() {
           {TABS.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => handleTabClick(tab)}
               className={`
                 flex flex-col items-center gap-1 px-4 py-1.5 rounded-lg
                 transition-all duration-200
@@ -191,7 +168,6 @@ export default function App() {
             >
               <span className="text-base">{tab.icon}</span>
               <span className="text-xs">{tab.label}</span>
-              {/* 选中指示点 */}
               {activeTab === tab.key && (
                 <span className="absolute -top-1 w-1 h-1 rounded-full bg-gold shadow-[0_0_6px_rgba(212,175,55,0.6)]" />
               )}
@@ -211,17 +187,12 @@ export default function App() {
               </div>
             ) : (
               <div className="animate-fade-in space-y-8">
-                {/* 命盘 - 横向展开 */}
                 <div className="w-full">
                   <ChartDisplay />
                 </div>
-
-                {/* AI 解读 - 下方展示，与命盘等宽 */}
                 <div className="w-full max-w-6xl mx-auto">
                   <AIInterpretation />
                 </div>
-
-                {/* 重新输入按钮 */}
                 <div className="text-center">
                   <button
                     onClick={() => useChartStore.getState().clear()}
@@ -310,7 +281,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 底部 - 仅桌面端显示 */}
+      {/* 底部 */}
       <footer
         className="
           hidden md:block
@@ -320,7 +291,7 @@ export default function App() {
       >
         <p className="flex items-center justify-center gap-2">
           <span className="text-gold/60">☆</span>
-          紫微知道 · 开源命理工具
+          紫微知道 · AI 命理工具 · 永久免费
           <span className="text-star/60">☆</span>
         </p>
       </footer>

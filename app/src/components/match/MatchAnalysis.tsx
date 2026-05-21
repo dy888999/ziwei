@@ -3,13 +3,12 @@
    分析两人命盘的契合度
    ============================================================ */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useSettingsStore } from '@/stores'
 import { generateChart, getShichenOptions, type BirthInfo, type Gender } from '@/lib/astro'
 import { extractKnowledge, buildPromptContext } from '@/knowledge'
-import { streamChat, type ChatMessage, type LLMConfig } from '@/lib/llm'
+import { chatWithAI } from '@/lib/api'
 import { Button, Select } from '@/components/ui'
 
 /* ------------------------------------------------------------
@@ -205,9 +204,6 @@ function PersonInput({ label, value, onChange }: PersonInputProps) {
    ------------------------------------------------------------ */
 
 export function MatchAnalysis() {
-  const { provider, providerSettings, enableThinking, enableWebSearch, searchApiKey } = useSettingsStore()
-  const currentSettings = providerSettings[provider]
-
   const [person1, setPerson1] = useState<BirthInfo>({
     year: 1990, month: 1, day: 1, hour: 12, gender: 'male',
   })
@@ -216,17 +212,54 @@ export function MatchAnalysis() {
   })
   const [result, setResult] = useState('')
   const [loading, setLoading] = useState(false)
+  const [animating, setAnimating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleAnalyze = useCallback(async () => {
-    if (!currentSettings.apiKey) {
-      setError('请先在设置中配置 API Key')
-      return
-    }
+  // 动画 refs
+  const fullTextRef = useRef('')
+  const displayTextRef = useRef('')
+  const displayIndexRef = useRef(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const loadingRef = useRef(false)
 
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [])
+
+  // 启动逐字动画
+  const startAnimation = useCallback(() => {
+    if (timerRef.current) return
+    setAnimating(true)
+    timerRef.current = setInterval(() => {
+      if (displayIndexRef.current < fullTextRef.current.length) {
+        displayIndexRef.current++
+        setResult(fullTextRef.current.slice(0, displayIndexRef.current))
+      } else if (!loadingRef.current) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+        }
+        setAnimating(false)
+      }
+    }, 30)
+  }, [])
+
+  const handleAnalyze = useCallback(async () => {
     setLoading(true)
+    loadingRef.current = true
     setError(null)
     setResult('')
+    fullTextRef.current = ''
+    displayIndexRef.current = 0
+
+    // 清理旧定时器
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
 
     try {
       // 生成两人命盘
@@ -257,32 +290,23 @@ ${context2}
 
 请分析两人的契合度和相处建议。`
 
-      const messages: ChatMessage[] = [
+      const messages = [
         { role: 'system', content: MATCH_PROMPT },
         { role: 'user', content: userMessage },
       ]
 
-      const config: LLMConfig = {
-        provider,
-        apiKey: currentSettings.apiKey,
-        baseUrl: currentSettings.customBaseUrl || undefined,
-        model: currentSettings.customModel || undefined,
-        enableThinking,
-        enableWebSearch,
-        searchApiKey: searchApiKey || undefined,
-      }
+      // 启动均匀输出动画
+      startAnimation()
 
-      let fullText = ''
-      for await (const token of streamChat(config, messages)) {
-        fullText += token
-        setResult(fullText)
-      }
+      // 通过 Worker 代理调用 AI
+      fullTextRef.current = await chatWithAI('match', messages)
     } catch (err) {
       setError(err instanceof Error ? err.message : '分析失败，请重试')
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
-  }, [person1, person2, provider, currentSettings, enableThinking, enableWebSearch, searchApiKey])
+  }, [person1, person2, startAnimation])
 
   return (
     <div className="animate-fade-in space-y-8 max-w-6xl mx-auto">
@@ -318,7 +342,7 @@ ${context2}
 
           <Button
             onClick={handleAnalyze}
-            disabled={loading || !currentSettings.apiKey}
+            disabled={loading}
             size="sm"
             variant="gold"
           >
@@ -327,7 +351,7 @@ ${context2}
                 <span className="w-3 h-3 border-2 border-night border-t-transparent rounded-full animate-spin" />
                 分析中
               </span>
-            ) : currentSettings.apiKey ? '开始合盘分析' : '请先配置 API'}
+            ) : '开始合盘分析'}
           </Button>
         </div>
 
@@ -343,39 +367,12 @@ ${context2}
             {error}
           </div>
         )}
-      </div>
 
-      {/* 下方：分析结果 */}
-      <div
-        className="
-          relative p-6 lg:p-8
-          bg-gradient-to-br from-white/[0.04] to-transparent
-          backdrop-blur-xl border border-white/[0.08] rounded-2xl
-          shadow-[0_8px_32px_rgba(0,0,0,0.3)]
-        "
-      >
-        {/* 顶部发光线 */}
-        <div
-          className="
-            absolute top-0 left-1/2 -translate-x-1/2
-            w-1/3 h-px
-            bg-gradient-to-r from-transparent via-star/50 to-transparent
-          "
-        />
-
-        {/* 未配置提示 */}
-        {!currentSettings.apiKey && !result && (
-          <div className="text-text-muted text-sm py-8 text-center">
+        {/* 提示 */}
+        {!result && !loading && (
+          <div className="text-center py-8 text-text-muted">
             <div className="text-3xl mb-3 opacity-30">⚭</div>
-            请先在设置中配置 AI 模型的 API Key，即可获得双人合盘分析。
-          </div>
-        )}
-
-        {/* 未分析提示 */}
-        {currentSettings.apiKey && !result && !loading && (
-          <div className="text-text-muted text-sm py-8 text-center">
-            <div className="text-3xl mb-3 opacity-30">⚭</div>
-            输入双方信息并点击「开始合盘分析」
+            <p>输入两人的生辰信息，点击「开始合盘分析」</p>
           </div>
         )}
 
@@ -383,11 +380,11 @@ ${context2}
         {loading && !result && (
           <div className="flex items-center justify-center gap-3 text-text-muted py-12">
             <div className="w-5 h-5 border-2 border-star border-t-transparent rounded-full animate-spin" />
-            <span>正在分析两人契合度...</span>
+            <span>正在分析合盘...</span>
           </div>
         )}
 
-        {/* 分析结果 - 书法字体 + Markdown 渲染 */}
+        {/* 分析结果 */}
         {result && (
           <div
             className="
@@ -402,6 +399,11 @@ ${context2}
             >
               {result}
             </ReactMarkdown>
+
+            {/* 光标指示器 */}
+            {animating && (
+              <span className="inline-block w-0.5 h-5 bg-gold/80 animate-pulse ml-0.5 align-middle" />
+            )}
           </div>
         )}
       </div>

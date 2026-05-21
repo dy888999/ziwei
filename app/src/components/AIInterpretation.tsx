@@ -6,9 +6,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useChartStore, useSettingsStore, useContentCacheStore } from '@/stores'
+import { useChartStore, useContentCacheStore } from '@/stores'
 import { extractKnowledge, buildPromptContext } from '@/knowledge'
-import { streamChat, type ChatMessage, type LLMConfig } from '@/lib/llm'
+import { chatWithAI } from '@/lib/api'
 import { Button } from '@/components/ui'
 
 /* ------------------------------------------------------------
@@ -111,9 +111,7 @@ const MarkdownComponents = {
 
 export function AIInterpretation() {
   const { chart, birthInfo } = useChartStore()
-  const { provider, providerSettings, enableThinking, enableWebSearch, searchApiKey } = useSettingsStore()
   const { aiInterpretation, setAiInterpretation } = useContentCacheStore()
-  const currentSettings = providerSettings[provider]
 
   // 显示的文本（逐字输出）
   const [displayText, setDisplayText] = useState('')
@@ -177,10 +175,6 @@ export function AIInterpretation() {
 
   const handleInterpret = useCallback(async () => {
     if (!chart || !birthInfo) return
-    if (!currentSettings.apiKey) {
-      setError('请先在设置中配置 API Key')
-      return
-    }
 
     // 重置状态
     loadingRef.current = true
@@ -213,28 +207,16 @@ ${contextStr}
 
 请给出详细但通俗易懂的命盘解读。`
 
-      const messages: ChatMessage[] = [
+      const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
       ]
 
-      const config: LLMConfig = {
-        provider,
-        apiKey: currentSettings.apiKey,
-        baseUrl: currentSettings.customBaseUrl || undefined,
-        model: currentSettings.customModel || undefined,
-        enableThinking,
-        enableWebSearch,
-        searchApiKey: searchApiKey || undefined,
-      }
-
       // 启动均匀输出动画
       startAnimation()
 
-      // 流式接收，写入缓冲区
-      for await (const token of streamChat(config, messages)) {
-        fullTextRef.current += token
-      }
+      // 通过 Worker 代理调用 AI（免费功能，无需激活码）
+      fullTextRef.current = await chatWithAI('chart', messages)
 
       // 保存到全局缓存
       setAiInterpretation(fullTextRef.current)
@@ -244,7 +226,7 @@ ${contextStr}
       loadingRef.current = false
       setLoading(false)
     }
-  }, [chart, birthInfo, provider, currentSettings, enableThinking, enableWebSearch, searchApiKey, startAnimation, setAiInterpretation])
+  }, [chart, birthInfo, startAnimation, setAiInterpretation])
 
   if (!chart) return null
 
@@ -280,7 +262,7 @@ ${contextStr}
         </h2>
         <Button
           onClick={handleInterpret}
-          disabled={loading || !currentSettings.apiKey}
+          disabled={loading}
           size="sm"
           variant="gold"
         >
@@ -289,7 +271,7 @@ ${contextStr}
               <span className="w-3 h-3 border-2 border-night border-t-transparent rounded-full animate-spin" />
               解读中
             </span>
-          ) : currentSettings.apiKey ? '开始解读' : '请先配置 API'}
+          ) : '开始解读'}
         </Button>
       </div>
 
@@ -300,11 +282,11 @@ ${contextStr}
         </div>
       )}
 
-      {/* 未配置提示 */}
-      {!currentSettings.apiKey && !displayText && (
+      {/* 提示 */}
+      {!displayText && (
         <div className="text-text-muted text-sm py-8 text-center">
           <div className="text-3xl mb-3 opacity-30">☆</div>
-          请先在设置中配置 AI 模型的 API Key，即可获得深度命盘解读。
+          点击「开始解读」即可获得 AI 深度命盘分析。
         </div>
       )}
 

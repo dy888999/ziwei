@@ -3,11 +3,11 @@
    基于流年盘分析当年运势
    ============================================================ */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { useChartStore, useSettingsStore, useContentCacheStore } from '@/stores'
-import { streamChat, type ChatMessage, type LLMConfig } from '@/lib/llm'
+import { useChartStore, useContentCacheStore } from '@/stores'
+import { chatWithAI } from '@/lib/api'
 import { extractKnowledge, buildPromptContext } from '@/knowledge'
 import { Button, Select } from '@/components/ui'
 
@@ -179,31 +179,76 @@ function buildYearlyContext(
 
 export function YearlyFortune() {
   const { chart, birthInfo } = useChartStore()
-  const { provider, providerSettings, enableThinking, enableWebSearch, searchApiKey } = useSettingsStore()
   const { yearlyFortune, setYearlyFortune } = useContentCacheStore()
-  const currentSettings = providerSettings[provider]
 
   const [year, setYear] = useState(currentYear)
+
+  // 显示的文本（逐字输出）
+  const [displayText, setDisplayText] = useState('')
   const [fortune, setFortune] = useState(yearlyFortune[currentYear] || '')
   const [loading, setLoading] = useState(false)
+  const [animating, setAnimating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 动画 refs
+  const fullTextRef = useRef('')
+  const displayIndexRef = useRef(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const loadingRef = useRef(false)
 
   // 切换年份时加载缓存
   const handleYearChange = useCallback((newYear: number) => {
     setYear(newYear)
-    setFortune(yearlyFortune[newYear] || '')
+    const cached = yearlyFortune[newYear] || ''
+    setFortune(cached)
+    setDisplayText(cached || '')
+    fullTextRef.current = cached
+    displayIndexRef.current = cached.length
   }, [yearlyFortune])
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+    }
+  }, [])
+
+  // 启动逐字动画
+  const startAnimation = useCallback(() => {
+    if (timerRef.current) return
+    setAnimating(true)
+    timerRef.current = setInterval(() => {
+      if (displayIndexRef.current < fullTextRef.current.length) {
+        displayIndexRef.current++
+        setDisplayText(fullTextRef.current.slice(0, displayIndexRef.current))
+      } else if (!loadingRef.current) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+        }
+        setAnimating(false)
+      }
+    }, 30)
+  }, [])
 
   const handleAnalyze = useCallback(async () => {
     if (!chart || !birthInfo) return
-    if (!currentSettings.apiKey) {
-      setError('请先在设置中配置 API Key')
-      return
-    }
 
     setLoading(true)
+    loadingRef.current = true
     setError(null)
     setFortune('')
+    setDisplayText('')
+    fullTextRef.current = ''
+    displayIndexRef.current = 0
+
+    // 清理旧定时器
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
 
     try {
       // 获取流年运限数据
@@ -230,35 +275,26 @@ ${yearlyContext}
 
 请结合本命盘和流年盘信息，给出详细的 ${year} 年运势分析。`
 
-      const messages: ChatMessage[] = [
+      const messages = [
         { role: 'system', content: FORTUNE_PROMPT },
         { role: 'user', content: userMessage },
       ]
 
-      const config: LLMConfig = {
-        provider,
-        apiKey: currentSettings.apiKey,
-        baseUrl: currentSettings.customBaseUrl || undefined,
-        model: currentSettings.customModel || undefined,
-        enableThinking,
-        enableWebSearch,
-        searchApiKey: searchApiKey || undefined,
-      }
+      // 启动均匀输出动画
+      startAnimation()
 
-      let fullText = ''
-      for await (const token of streamChat(config, messages)) {
-        fullText += token
-        setFortune(fullText)
-      }
+      // 通过 Worker 代理调用 AI
+      fullTextRef.current = await chatWithAI('annual', messages)
 
       // 保存到全局缓存
-      setYearlyFortune(year, fullText)
+      setYearlyFortune(year, fullTextRef.current)
     } catch (err) {
       setError(err instanceof Error ? err.message : '分析失败，请重试')
     } finally {
+      loadingRef.current = false
       setLoading(false)
     }
-  }, [chart, birthInfo, year, provider, currentSettings, enableThinking, enableWebSearch, searchApiKey, setYearlyFortune])
+  }, [chart, birthInfo, year, startAnimation, setYearlyFortune])
 
   if (!chart) return null
 
@@ -303,7 +339,7 @@ ${yearlyContext}
 
             <Button
               onClick={handleAnalyze}
-              disabled={loading || !currentSettings.apiKey}
+              disabled={loading}
               size="sm"
               variant="gold"
             >
@@ -312,7 +348,7 @@ ${yearlyContext}
                   <span className="w-3 h-3 border-2 border-night border-t-transparent rounded-full animate-spin" />
                   分析中
                 </span>
-              ) : currentSettings.apiKey ? '查看运势' : '请先配置 API'}
+              ) : '查看运势'}
             </Button>
           </div>
         </div>
@@ -343,16 +379,8 @@ ${yearlyContext}
           "
         />
 
-        {/* 未配置提示 */}
-        {!currentSettings.apiKey && !fortune && (
-          <div className="text-text-muted text-sm py-8 text-center">
-            <div className="text-3xl mb-3 opacity-30">◎</div>
-            请先在设置中配置 AI 模型的 API Key，即可获得年度运势分析。
-          </div>
-        )}
-
-        {/* 未分析提示 */}
-        {currentSettings.apiKey && !fortune && !loading && (
+        {/* 提示 */}
+        {!fortune && !loading && (
           <div className="text-text-muted text-sm py-8 text-center">
             <div className="text-3xl mb-3 opacity-30">◎</div>
             选择年份并点击「查看运势」开始分析
@@ -360,7 +388,7 @@ ${yearlyContext}
         )}
 
         {/* 加载中 */}
-        {loading && !fortune && (
+        {loading && !displayText && (
           <div className="flex items-center justify-center gap-3 text-text-muted py-12">
             <div className="w-5 h-5 border-2 border-star border-t-transparent rounded-full animate-spin" />
             <span>正在分析 {year} 年运势...</span>
@@ -368,7 +396,7 @@ ${yearlyContext}
         )}
 
         {/* 运势内容 - 书法字体 + Markdown 渲染 */}
-        {fortune && (
+        {displayText && (
           <div
             className="
               prose prose-invert max-w-none
@@ -380,8 +408,13 @@ ${yearlyContext}
               remarkPlugins={[remarkGfm]}
               components={MarkdownComponents}
             >
-              {fortune}
+              {displayText}
             </ReactMarkdown>
+
+            {/* 光标指示器 */}
+            {animating && (
+              <span className="inline-block w-0.5 h-5 bg-gold/80 animate-pulse ml-0.5 align-middle" />
+            )}
           </div>
         )}
       </div>
