@@ -217,7 +217,6 @@ export function MatchAnalysis() {
 
   // 动画 refs
   const fullTextRef = useRef('')
-  const displayTextRef = useRef('')
   const displayIndexRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const loadingRef = useRef(false)
