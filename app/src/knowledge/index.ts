@@ -4,7 +4,9 @@
    ============================================================ */
 
 import { getStarInfo, type StarInfo } from './stars/majorStars'
+import { getMinorStarInfo } from './stars/minorStars'
 import { getSihuaInfo, type SihuaInfo } from './sihua'
+import { detectPatterns as detectPatternsFromModule } from './patterns'
 import type FunctionalAstrolabe from 'iztro/lib/astro/FunctionalAstrolabe'
 
 /* ------------------------------------------------------------
@@ -248,45 +250,7 @@ function getDecadalMutagens(stem: string): string[] {
    ------------------------------------------------------------ */
 
 function detectPatterns(chart: FunctionalAstrolabe): string[] {
-  const patterns: string[] = []
-  const palaces = chart.palaces || []
-
-  // 找命宫
-  const lifePalace = palaces.find(p => p.name === '命宫')
-  if (!lifePalace) return patterns
-
-  const majorStarNames = (lifePalace.majorStars || []).map(s => s.name as string)
-
-  // 紫府同宫
-  if (majorStarNames.includes('紫微') && majorStarNames.includes('天府')) {
-    patterns.push('紫府同宫：紫微与天府同在命宫，帝星与财库星同宫，富贵格局。')
-  }
-
-  // 紫杀同宫
-  if (majorStarNames.includes('紫微') && majorStarNames.includes('七杀')) {
-    patterns.push('紫杀同宫：紫微与七杀同宫，权威与冲劲结合，有开创能力。')
-  }
-
-  // 机月同梁
-  const hasJiyue = majorStarNames.includes('天机') || majorStarNames.includes('太阴')
-  const hasTongliang = majorStarNames.includes('天同') || majorStarNames.includes('天梁')
-  if (hasJiyue && hasTongliang) {
-    patterns.push('机月同梁：文星组合，适合公职、文教、服务类工作。')
-  }
-
-  // 空宫
-  if (majorStarNames.length === 0) {
-    patterns.push('命宫无主星：需借对宫星曜论断，人生较多变化。')
-  }
-
-  // 检查化忌入命
-  for (const star of lifePalace.majorStars || []) {
-    if (String(star.mutagen) === '化忌') {
-      patterns.push(`${star.name}化忌入命：需特别关注该星所主事项，有执着与困扰。`)
-    }
-  }
-
-  return patterns
+  return detectPatternsFromModule(chart)
 }
 
 /* ------------------------------------------------------------
@@ -394,6 +358,46 @@ export function buildPromptContext(context: KnowledgeContext): string {
     lines.push('')
   }
 
+  // 辅星详解（在关键宫位的辅星知识）
+  const keyPalaces = ['命宫', '身宫', '财帛宫', '官禄宫', '迁移宫', '夫妻宫']
+  const lifeOrBodyPalaces = context.十二宫.filter(p =>
+    keyPalaces.includes(p.name) && p.minorStars.length > 0,
+  )
+
+  if (lifeOrBodyPalaces.length > 0) {
+    const addedMinorStars = new Set<string>()
+    for (const palace of lifeOrBodyPalaces) {
+      for (const ms of palace.minorStars) {
+        addedMinorStars.add(ms.name)
+      }
+    }
+
+    lines.push('## 辅星详解')
+    lines.push('（以下为命盘中关键宫位出现的辅星含义说明）')
+    lines.push('')
+    for (const starName of [...addedMinorStars].sort()) {
+      const info = getMinorStarInfo(starName)
+      if (info) {
+        lines.push(`### ${starName}（${info.category}）`)
+        lines.push(`- ${info.description}`)
+        // 列出此星出现在哪些关键宫位
+        const presence = lifeOrBodyPalaces
+          .filter(p => p.minorStars.some(ms => ms.name === starName))
+          .map(p => {
+            const effect = info.palaceEffects[p.name]
+            return effect ? `${p.name}：${effect}` : p.name
+          })
+        if (presence.length > 0) {
+          lines.push(`- 出现宫位及影响：`)
+          for (const p of presence) {
+            lines.push(`  * ${p}`)
+          }
+        }
+        lines.push('')
+      }
+    }
+  }
+
   // 格局提示
   if (context.格局提示.length > 0) {
     lines.push('## 格局提示')
@@ -411,5 +415,7 @@ export function buildPromptContext(context: KnowledgeContext): string {
    ------------------------------------------------------------ */
 
 export * from './stars/majorStars'
+export * from './stars/minorStars'
+export * from './patterns'
 export * from './palaces'
 export * from './sihua'
